@@ -1,0 +1,8 @@
+{
+  "name": "price_too_high",
+  "pattern": "price is too high",
+  "response_template": "I understand your concern about the price. Let me break down the value proposition: The {property_type} property in {location} offers {key_features}. When you consider the potential ROI of {projected_roi}% and the current market trends showing {market_growth}% growth in this area, this investment actually presents a strong opportunity for long-term value appreciation.",
+  "keywords": ["expensive", "high", "price", "cost", "afford", "budget"],
+  "category": "pricing",
+  "follow_up": "Would you like me to walk you through a detailed ROI analysis to show how this property could benefit your portfolio?"
+}

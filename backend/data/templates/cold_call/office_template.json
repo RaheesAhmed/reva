@@ -1,0 +1,13 @@
+{
+  "name": "office_template",
+  "template": "Hi {contact_name}, this is [Your Name] with [Your Company]. I noticed that {company_name} has been operating in the {location} market, and I wanted to discuss an opportunity that could address your {pain_points}. Given the current market conditions, many businesses are looking to {optimize_strategy} their office space. Would you be open to a brief conversation about how we could help optimize your commercial real estate portfolio?",
+  "variables": {
+    "contact_name": "Contact's full name",
+    "company_name": "Target company name",
+    "location": "Market location",
+    "pain_points": "Specific challenges or needs",
+    "optimize_strategy": "Optimization strategy (e.g., 'consolidate', 'expand', 'modernize')"
+  },
+  "industry_type": "general",
+  "property_type": "office"
+}

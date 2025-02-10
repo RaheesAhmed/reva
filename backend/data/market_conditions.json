@@ -1,0 +1,16 @@
+{
+  "general": [
+    {
+      "indicator": "interest_rates",
+      "value": 5.5,
+      "trend": "up",
+      "impact": "Higher rates may favor private sales due to fewer qualified buyers"
+    },
+    {
+      "indicator": "market_liquidity",
+      "value": 7.2,
+      "trend": "stable",
+      "impact": "Good liquidity supports multiple sale methods"
+    }
+  ]
+}

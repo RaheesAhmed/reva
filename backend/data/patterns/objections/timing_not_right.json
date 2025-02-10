@@ -1,0 +1,8 @@
+{
+  "name": "timing_not_right",
+  "pattern": "not the right time",
+  "response_template": "I appreciate your perspective on timing. However, our market analysis shows that {market_conditions} make this an opportune time to invest. {location} has shown {historical_performance} over the past year, and we're seeing strong indicators for continued growth.",
+  "keywords": ["timing", "right now", "later", "wait", "market", "future"],
+  "category": "timing",
+  "follow_up": "What specific market conditions would make you feel more comfortable about moving forward?"
+}

@@ -1,0 +1,28 @@
+[
+  {
+    "name": "initial_contact",
+    "template": "Hi {contact_name}, this is {agent_name} with {company_name}. \n                I noticed that {property_address} might be a great opportunity for {investment_strategy}. \n                Based on our analysis, {value_proposition}. \n                Would you be open to a brief conversation about this?",
+    "variables": [
+      "contact_name",
+      "agent_name",
+      "company_name",
+      "property_address",
+      "investment_strategy",
+      "value_proposition"
+    ],
+    "category": "initial_contact"
+  },
+  {
+    "name": "market_opportunity",
+    "template": "Hi {contact_name}, I'm reaching out because we've identified some interesting \n                market trends in {market_area}. Properties like yours at {property_address} are showing \n                {market_insight}. Given {timing_factor}, this could be an optimal time to consider \n                {suggested_action}. Would you like to discuss this further?",
+    "variables": [
+      "contact_name",
+      "market_area",
+      "property_address",
+      "market_insight",
+      "timing_factor",
+      "suggested_action"
+    ],
+    "category": "market_analysis"
+  }
+]

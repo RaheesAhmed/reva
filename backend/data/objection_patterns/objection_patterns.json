@@ -1,0 +1,31 @@
+[
+  {
+    "category": "pricing",
+    "pattern": "too expensive|high price|overpriced",
+    "response_template": "I understand your concern about pricing. Based on our {market_analysis}, the price reflects {value_factors}. Additionally, {roi_potential}. Would you like to discuss the specific factors driving this valuation?",
+    "context_vars": [
+      "market_analysis",
+      "value_factors",
+      "roi_potential"
+    ]
+  },
+  {
+    "category": "timing",
+    "pattern": "not the right time|waiting|market conditions",
+    "response_template": "I appreciate your perspective on timing. Looking at {market_trends}, we're seeing {opportunity_indicators}. This suggests {timing_advantage}. What specific market factors are you most concerned about?",
+    "context_vars": [
+      "market_trends",
+      "opportunity_indicators",
+      "timing_advantage"
+    ]
+  },
+  {
+    "category": "competition",
+    "pattern": "looking at other properties|comparing options|alternatives",
+    "response_template": "It's smart to explore options. What sets this property apart is {unique_features}. Furthermore, {competitive_advantage}. Would you like to discuss how this compares to specific alternatives you're considering?",
+    "context_vars": [
+      "unique_features",
+      "competitive_advantage"
+    ]
+  }
+]
