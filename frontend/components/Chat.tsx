@@ -28,6 +28,7 @@ export default function Chat({ selectedTools, chatId, onUpdateHistory }: ChatPro
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [currentAssistantId, setCurrentAssistantId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load chat history from localStorage when chatId changes
@@ -72,10 +73,9 @@ export default function Chat({ selectedTools, chatId, onUpdateHistory }: ChatPro
       timestamp: new Date(),
     };
 
-    setMessages(prev => [...prev, newUserMessage]);
-    onUpdateHistory(newUserMessage);
-
     const assistantMessageId = (Date.now() + 1).toString();
+    setCurrentAssistantId(assistantMessageId);
+
     const assistantMessage = {
       id: assistantMessageId,
       role: 'assistant' as const,
@@ -83,75 +83,43 @@ export default function Chat({ selectedTools, chatId, onUpdateHistory }: ChatPro
       timestamp: new Date(),
     };
 
-    setMessages(prev => [...prev, assistantMessage]);
+    setMessages(prev => [...prev, newUserMessage, assistantMessage]);
+    onUpdateHistory(newUserMessage);
 
     try {
       const stream = await apiClient.chat(userMessage, selectedTools);
       const reader = stream.getReader();
-      const decoder = new TextDecoder('utf-8');
       let fullResponse = '';
 
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
 
-        // Convert the stream value to string safely
-        const chunk = typeof value === 'string' ? value : decoder.decode(value);
-        const lines = chunk.split('\n');
+        const chunk = value;
+        
+        fullResponse = fullResponse 
+          ? `${fullResponse}${chunk.startsWith(' ') ? '' : ' '}${chunk}` 
+          : chunk;
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(5).trim();
-            
-            if (data === '[DONE]') {
-              break;
-            } else if (data.startsWith('ERROR:')) {
-              throw new Error(data.slice(6).trim());
-            } else {
-              // Clean the response and handle line breaks
-              const cleanedData = data
-                .replace(/\[object Object\]/g, '')
-                .replace(/,+/g, ',')
-                .trim();
-              
-              // Ensure proper spacing between words
-              fullResponse = fullResponse 
-                ? `${fullResponse}${cleanedData.startsWith(' ') ? '' : ' '}${cleanedData}` 
-                : cleanedData;
-
-              // Format the response with proper line breaks and markdown
-              const formattedResponse = fullResponse
-                .replace(/\n\s*\n/g, '\n\n')  // Fix multiple newlines
-                .replace(/([.!?])\s+/g, '$1\n')  // Add newline after sentences
-                .replace(/###\s*/g, '\n### ')  // Format headers
-                .replace(/##\s*/g, '\n## ')
-                .replace(/#\s*/g, '\n# ')
-                .replace(/\*\*([^*]+)\*\*/g, '**$1**')  // Preserve bold
-                .trim();
-              
-              setMessages(prev => prev.map(msg =>
-                msg.id === assistantMessageId
-                  ? { ...msg, content: formattedResponse }
-                  : msg
-              ));
-            }
-          }
-        }
+        const formattedResponse = fullResponse
+          .replace(/\n\s*\n/g, '\n\n')
+          .replace(/([.!?])\s+/g, '$1\n')
+          .replace(/###\s*/g, '\n### ')
+          .replace(/##\s*/g, '\n## ')
+          .replace(/#\s*/g, '\n# ')
+          .replace(/\*\*([^*]+)\*\*/g, '**$1**')
+          .trim();
+        
+        setMessages(prev => prev.map(msg =>
+          msg.id === assistantMessageId
+            ? { ...msg, content: formattedResponse }
+            : msg
+        ));
       }
 
-      const finalResponse = fullResponse
-        .replace(/\n\s*\n/g, '\n\n')
-        .replace(/([.!?])\s+/g, '$1\n')
-        .replace(/###\s*/g, '\n### ')
-        .replace(/##\s*/g, '\n## ')
-        .replace(/#\s*/g, '\n# ')
-        .replace(/\*\*([^*]+)\*\*/g, '**$1**')
-        .trim();
-
-      // Update history with the final formatted response
       onUpdateHistory({
         ...assistantMessage,
-        content: finalResponse,
+        content: fullResponse.trim(),
       });
 
     } catch (error) {
@@ -159,7 +127,7 @@ export default function Chat({ selectedTools, chatId, onUpdateHistory }: ChatPro
       const errorMessage = {
         id: assistantMessageId,
         role: 'assistant' as const,
-        content: 'Sorry, an error occurred. Please try again.',
+        content: error instanceof Error ? error.message : 'An error occurred. Please try again.',
         timestamp: new Date(),
       };
       setMessages(prev => prev.map(msg =>
@@ -168,6 +136,7 @@ export default function Chat({ selectedTools, chatId, onUpdateHistory }: ChatPro
       onUpdateHistory(errorMessage);
     } finally {
       setIsLoading(false);
+      setCurrentAssistantId(null);
     }
   };
 
@@ -175,61 +144,49 @@ export default function Chat({ selectedTools, chatId, onUpdateHistory }: ChatPro
     <div className="flex flex-col h-full bg-background/95 chat-container">
       <ScrollArea className="flex-1 px-4 md:px-6 custom-scrollbar">
         <div className="max-w-4xl mx-auto space-y-6 md:space-y-8 py-6 md:py-8">
-          {messages.map((message, index) => {
-            // Skip rendering if this is an empty assistant message and we're loading
-            if (message.role === 'assistant' && 
-                !message.content && 
-                isLoading && 
-                index === messages.length - 1) {
-              return (
-                <div key={message.id} className="flex items-start gap-4 pl-4 animate-in fade-in-50">
-                  <div className="flex h-10 w-10 shrink-0 select-none items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-primary/20">
-                    <Bot className="h-5 w-5" />
+          {messages.map((message, index) => (
+            <div
+              key={message.id}
+              className={cn(
+                "group relative flex items-start gap-4 message-bubble animate-in fade-in-50",
+                message.role === 'assistant' && "bg-card/50 rounded-lg p-4 md:p-6 glass-panel",
+                message.role === 'user' && "pl-4"
+              )}
+            >
+              <div className={cn(
+                "flex h-10 w-10 shrink-0 select-none items-center justify-center rounded-full",
+                message.role === 'assistant' 
+                  ? "bg-primary/10 text-primary ring-1 ring-primary/20" 
+                  : "bg-secondary text-secondary-foreground"
+              )}>
+                {message.role === 'assistant' ? (
+                  <Bot className="h-5 w-5" />
+                ) : (
+                  <User className="h-5 w-5" />
+                )}
+              </div>
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="font-semibold text-sm">
+                    {message.role === 'user' ? 'You' : 'Assistant'}
                   </div>
-                  <div className="flex-1">
-                    <div className="glass-panel rounded-lg p-4">
+                  <div className="text-xs text-muted-foreground">
+                    {new Date(message.timestamp).toLocaleTimeString()}
+                  </div>
+                </div>
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                  {message.role === 'assistant' && message.id === currentAssistantId && !message.content ? (
+                    <div className="flex flex-col space-y-4">
                       <div className="typing-indicator">
                         <span></span>
                         <span></span>
                         <span></span>
                       </div>
+                      <div className="text-sm text-muted-foreground">
+                        AI Assistant is thinking...
+                      </div>
                     </div>
-                  </div>
-                </div>
-              );
-            }
-
-            return (
-              <div
-                key={message.id}
-                className={cn(
-                  "group relative flex items-start gap-4 message-bubble",
-                  message.role === 'assistant' && "bg-card/50 rounded-lg p-4 md:p-6 glass-panel",
-                  message.role === 'user' && "pl-4"
-                )}
-              >
-                <div className={cn(
-                  "flex h-10 w-10 shrink-0 select-none items-center justify-center rounded-full",
-                  message.role === 'assistant' 
-                    ? "bg-primary/10 text-primary ring-1 ring-primary/20" 
-                    : "bg-secondary text-secondary-foreground"
-                )}>
-                  {message.role === 'assistant' ? (
-                    <Bot className="h-5 w-5" />
                   ) : (
-                    <User className="h-5 w-5" />
-                  )}
-                </div>
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="font-semibold text-sm">
-                      {message.role === 'user' ? 'You' : 'Assistant'}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {new Date(message.timestamp).toLocaleTimeString()}
-                    </div>
-                  </div>
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm, remarkBreaks]}
                       components={{
@@ -282,11 +239,11 @@ export default function Chat({ selectedTools, chatId, onUpdateHistory }: ChatPro
                     >
                       {message.content}
                     </ReactMarkdown>
-                  </div>
+                  )}
                 </div>
               </div>
-            );
-          })}
+            </div>
+          ))}
           <div ref={messagesEndRef} />
         </div>
       </ScrollArea>

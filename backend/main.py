@@ -1,5 +1,5 @@
 import asyncio
-from fastapi import FastAPI, HTTPException, UploadFile, File, Request #type: ignore
+from fastapi import FastAPI, HTTPException, UploadFile, File, Request, WebSocket, WebSocketDisconnect #type: ignore
 from fastapi.responses import StreamingResponse 
 from fastapi.middleware.cors import CORSMiddleware #type: ignore
 from pydantic import BaseModel #type: ignore
@@ -48,6 +48,23 @@ agent = RealEstateAgent(
     model_name="gpt-4-turbo-preview",
     temperature=0.7
 )
+
+# WebSocket connection manager
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def send_message(self, message: str, websocket: WebSocket):
+        await websocket.send_text(message)
+
+manager = ConnectionManager()
 
 @app.on_event("startup")
 async def startup_event():
@@ -133,10 +150,66 @@ except Exception as e:
     logger.error(f"Error including routers: {str(e)}")
     raise
 
+@app.websocket("/ws/chat")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Receive message from client
+            data = await websocket.receive_json()
+            message = data.get("message", "")
+            tools = data.get("tools", [])
+
+            try:
+                # If tools are specified, filter the agent's tools
+                original_tools = agent.tools.copy()
+                if tools:
+                    available_tools = {
+                        'search': agent.tools[4],
+                        'economic-data': agent.tools[5],
+                        'market-analysis': agent.tools[1],
+                        'property-analysis': agent.tools[0],
+                        'value-proposition': agent.tools[2],
+                        'document-search': agent.tools[3],
+                    }
+                    filtered_tools = [available_tools[tool] for tool in tools if tool in available_tools]
+                    agent.tools = filtered_tools
+
+                # Run agent asynchronously
+                response = await agent.arun(message)
+                
+                # Restore original tools
+                if tools:
+                    agent.tools = original_tools
+                
+                # Stream the response in smaller chunks
+                words = response.split()
+                for i in range(0, len(words), 3):
+                    chunk = " ".join(words[i:i+3])
+                    await manager.send_message(chunk, websocket)
+                    await asyncio.sleep(0.1)  # Small delay for smoother streaming
+                
+                # Send completion signal
+                await manager.send_message("[DONE]", websocket)
+                
+            except Exception as e:
+                logger.error(f"Error in chat: {str(e)}")
+                await manager.send_message(f"ERROR: {str(e)}", websocket)
+                # Restore original tools on error
+                if tools:
+                    agent.tools = original_tools
+
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception as e:
+        logger.error(f"WebSocket error: {str(e)}")
+        manager.disconnect(websocket)
+
 @app.post("/chat")
 async def chat(request: ChatRequest):
     """
     Chat with the AI assistant using all available tools with streaming support.
+    This endpoint is kept for backward compatibility.
     """
     try:
         # If tools are specified, filter the agent's tools

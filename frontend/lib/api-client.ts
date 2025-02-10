@@ -57,6 +57,69 @@ export interface Document {
 }
 
 class ApiClient {
+  private ws: WebSocket | null = null;
+  private messageCallbacks: Map<string, (message: string) => void> = new Map();
+
+  private getWebSocketUrl(): string {
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    return baseUrl.replace(/^http(s)?:/, wsProtocol) + '/ws/chat';
+  }
+
+  private ensureWebSocketConnection(): Promise<WebSocket> {
+    return new Promise((resolve, reject) => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        resolve(this.ws);
+        return;
+      }
+
+      this.ws = new WebSocket(this.getWebSocketUrl());
+
+      this.ws.onmessage = (event) => {
+        const data = event.data;
+        // Handle incoming messages and route them to the appropriate callback
+        this.messageCallbacks.forEach((callback) => callback(data));
+      };
+
+      this.ws.onopen = () => resolve(this.ws!);
+      this.ws.onerror = (error) => reject(error);
+      this.ws.onclose = () => {
+        this.ws = null;
+        // Implement reconnection logic here if needed
+      };
+    });
+  }
+
+  async chat(message: string, tools?: string[]): Promise<ReadableStream<string>> {
+    const ws = await this.ensureWebSocketConnection();
+
+    // Create a ReadableStream that will receive WebSocket messages
+    return new ReadableStream({
+      start: (controller) => {
+        const messageHandler = (data: string) => {
+          if (data === '[DONE]') {
+            controller.close();
+            this.messageCallbacks.delete(message);
+          } else if (data.startsWith('ERROR:')) {
+            controller.error(new Error(data.slice(6)));
+            this.messageCallbacks.delete(message);
+          } else {
+            controller.enqueue(data);
+          }
+        };
+
+        // Store the callback for this message
+        this.messageCallbacks.set(message, messageHandler);
+
+        // Send the message through WebSocket
+        ws.send(JSON.stringify({ message, tools }));
+      },
+      cancel: () => {
+        this.messageCallbacks.delete(message);
+      }
+    });
+  }
+
   private async fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
     const defaultHeaders: HeadersInit = options.body instanceof FormData
       ? { 'Accept': 'application/json' }
@@ -81,27 +144,6 @@ class ApiClient {
     }
 
     return result;
-  }
-
-  async chat(message: string, tools?: string[]): Promise<ReadableStream<string>> {
-    const response = await fetch(`${API_BASE_URL}/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'text/event-stream',
-      },
-      body: JSON.stringify({ message, tools }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
-    }
-
-    if (!response.body) {
-      throw new Error('No response body');
-    }
-
-    return response.body;
   }
 
   async search(request: SearchRequest): Promise<any> {
